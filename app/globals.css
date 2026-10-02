@@ -3339,3 +3339,145 @@ select,
     animation: none;
   }
 }
+
+/* ── Reader (/read) ─────────────────────────────────────────────────────── */
+
+.reader {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--paper);
+}
+
+.reader-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 3px solid var(--ink);
+}
+
+.reader-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.reader-book {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reader-chapter {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reader-tools {
+  display: flex;
+  gap: 8px;
+}
+
+.reader-toc {
+  position: absolute;
+  top: 64px;
+  right: 16px;
+  z-index: 20;
+  width: min(380px, calc(100vw - 32px));
+  max-height: 70dvh;
+  overflow-y: auto;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  box-shadow: var(--hard-lg);
+  padding: 8px 0;
+}
+
+.reader-toc ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 14px;
+}
+
+.reader-toc > ul {
+  padding-left: 0;
+}
+
+.reader-toc button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 6px 16px;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.reader-toc button:hover {
+  color: var(--accent);
+}
+
+.reader-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.reader-view {
+  flex: 1;
+  min-width: 0;
+  padding: 16px 0;
+}
+
+.reader-turn {
+  width: 44px;
+  flex: none;
+  background: none;
+  border: 0;
+  font-size: 2rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.reader-turn:hover {
+  color: var(--accent);
+}
+
+.reader-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-top: 3px solid var(--ink);
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.reader-progress {
+  flex: 1;
+  height: 6px;
+  background: var(--paper-deep);
+}
+
+.reader-progress-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .reader-turn {
+    display: none; /* swipe instead */
+  }
+  .reader-chapter {
+    display: none;
+  }
+}

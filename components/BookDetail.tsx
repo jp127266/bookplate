@@ -146,12 +146,17 @@ export default function BookDetail({
               />
             )}
             <div className="dialog-actions">
+              {book.epub && (
+                <Link className="btn btn--primary" href={`/read?id=${encodeURIComponent(book.id)}`}>
+                  Read
+                </Link>
+              )}
               {book.status !== "read" && (
                 <button type="button" className="btn btn--primary" onClick={onFinish}>
                   Finished Reading
                 </button>
               )}
-              <Link className="btn btn--accent" href={`/books/${book.id}`}>
+              <Link className="btn btn--accent" href={`/books?id=${encodeURIComponent(book.id)}`}>
                 Notes
               </Link>
               <button type="button" className="btn btn--danger" onClick={onDelete}>

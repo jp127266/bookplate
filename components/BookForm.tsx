@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api";
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import type { SearchResult } from "@/lib/openLibrary";
 import { Book, BookFormat, BookStatus, FORMAT_LABELS, STATUS_LABELS } from "@/lib/types";
@@ -106,7 +107,7 @@ export default function BookForm({ book, genres, onSave, onClose }: Props) {
     setSearching(true);
     setSearchError(null);
     try {
-      const res = await fetch(`/api/booksearch?q=${encodeURIComponent(q)}`);
+      const res = await apiFetch(`/api/booksearch?q=${encodeURIComponent(q)}`);
       if (!res.ok) throw new Error();
       const data: { results: SearchResult[] } = await res.json();
       setResults(data.results);
@@ -135,7 +136,7 @@ export default function BookForm({ book, genres, onSave, onClose }: Props) {
     try {
       const params = new URLSearchParams({ s: "L", t: r.title, a: r.author });
       if (r.coverId) params.set("id", String(r.coverId));
-      const res = await fetch(`/api/booksearch/cover?${params}`);
+      const res = await apiFetch(`/api/booksearch/cover?${params}`);
       if (res.ok) setRawImage(await fileToDataUrl(await res.blob())); // opens the cropper
     } catch {
       // No cover fetched — the generated cover remains.
@@ -264,7 +265,7 @@ export default function BookForm({ book, genres, onSave, onClose }: Props) {
                         {r.coverId && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={`/api/booksearch/cover?id=${r.coverId}&s=S`}
+                            src={`https://covers.openlibrary.org/b/id/${r.coverId}-S.jpg`}
                             alt=""
                             loading="lazy"
                             onError={(e) => {

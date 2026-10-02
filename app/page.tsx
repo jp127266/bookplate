@@ -6,6 +6,7 @@ import { Book, ProgressEntry } from "@/lib/types";
 import { summarize } from "@/lib/progress";
 import { apiFetch, putJson } from "@/lib/api";
 import { newId } from "@/lib/id";
+import { syncLibrary } from "@/lib/epub";
 import Toolbar, { StatusFilter, ViewMode } from "@/components/Toolbar";
 import CoverGrid from "@/components/CoverGrid";
 import ListView from "@/components/ListView";
@@ -52,6 +53,8 @@ export default function Home() {
   const [pendingFinish, setPendingFinish] = useState<Book | null>(null);
 
   const [loadError, setLoadError] = useState(false);
+  // EPUB folders being shelved in the background: "done / total".
+  const [shelving, setShelving] = useState<string | null>(null);
   // Why the last change wasn't saved, shown above the library.
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -111,6 +114,23 @@ export default function Home() {
     };
   }, [router]);
 
+  // Once the library is open, shelve any EPUB folders it doesn't have yet.
+  const loaded = books !== null;
+  useEffect(() => {
+    if (!loaded) return;
+    let cancelled = false;
+    syncLibrary((added, done, total) => {
+      if (cancelled) return;
+      if (added.length) setBooks((prev) => [...(prev ?? []), ...added.filter((b) => !prev?.some((p) => p.id === b.id))]);
+      setShelving(done < total ? `${done} / ${total}` : null);
+    }).catch(() => {
+      if (!cancelled) setSaveError("The EPUB library could not be read — books already on the shelf still work.");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loaded]);
+
   // Each change is saved as it happens, one book at a time. A refusal from
   // the server (e.g. a library at this server's book limit) explains itself;
   // `onRefused` undoes the change on screen.
@@ -125,7 +145,7 @@ export default function Home() {
         }
         throw new Error();
       })
-      .catch(() => setSaveError("The last change could not be saved — is the server still running?"));
+      .catch(() => setSaveError("The last change could not be saved — is chandler reachable?"));
   };
   const saveBook = (book: Book, onRefused?: () => void) => persist(putJson(`/api/books/${book.id}`, book), onRefused);
   const removeBook = (id: string) => persist(apiFetch(`/api/books/${id}`, { method: "DELETE" }));
@@ -274,7 +294,7 @@ export default function Home() {
 
       {books === null ? (
         <p className="empty-note">
-          {loadError ? "The library could not be opened — is the server still running?" : "Opening the library…"}
+          {loadError ? "The library could not be opened — is chandler reachable?" : "Opening the library…"}
         </p>
       ) : (
         <>
@@ -283,6 +303,7 @@ export default function Home() {
               {saveError}
             </p>
           )}
+          {shelving && <p className="empty-note">Shelving books from the EPUB library… {shelving}</p>}
         <section className="view-area">
           {view === "covers" && (
             <CoverGrid books={visible} onSelect={setSelectedId} marked={marked} progress={coverProgress} />

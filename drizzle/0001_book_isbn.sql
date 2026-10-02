@@ -1,1 +1,0 @@
-ALTER TABLE "book" ADD COLUMN "isbn" text;

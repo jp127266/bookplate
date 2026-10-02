@@ -1,5 +1,26 @@
 # 📚 Bookplate
 
+> **This branch (`chandler-static`) is the chandler edition:** a fully static
+> build, served by nginx on an ASUS router at
+> `https://jp127266.asuscomm.com/bookplate` behind basic auth. There is no
+> Node.js server and no database:
+>
+> - the pages call `apiFetch("/api/…")` as before, but `lib/api.ts` answers in
+>   the browser, reading and writing JSON and image files in `/bookplate/data/`
+>   through nginx WebDAV `PUT`/`DELETE`;
+> - every unpacked EPUB folder in the router's `Books/` (served read-only at
+>   `/bookplate/library/`) is shelved automatically (`lib/epub.ts`), and opens
+>   in an in-browser reader at `/read?id=…` (epub.js), which remembers your
+>   place and logs reading progress;
+> - accounts, email, CSV import and the server-side proxies are gone: nginx
+>   does sign-in, and Open Library, iTunes and Wiktionary are called directly
+>   (they all allow cross-origin requests).
+>
+> Build and publish with `npm run deploy` (`deploy/deploy.sh`). The router
+> side — nginx config, folders, permissions — is documented in
+> `docs/chandler-bookplate-plan.md` in the qt-audio repo. Everything below
+> describes the Docker edition on `main`.
+
 A personal reading tracker with a bold editorial look. Books carry ratings,
 reading dates, and their own notes pages, and can wear real cover photos —
 searched from a catalogue, uploaded, or pasted straight from the clipboard. A

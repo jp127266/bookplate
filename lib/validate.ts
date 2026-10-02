@@ -27,6 +27,7 @@ export function isValidBook(b: unknown): b is Book {
     optional(o, "dateRead", "string") &&
     optional(o, "notes", "string") &&
     optional(o, "coverImage", "string") &&
+    optional(o, "epub", "string") &&
     optional(o, "addedAt", "string")
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
 import Link from "next/link";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -40,7 +39,11 @@ function imageFilesFrom(dt: DataTransfer): File[] {
 }
 
 export default function BookNotesPage() {
-  const { id } = useParams<{ id: string }>();
+  // /books?id=<bookId> — read in the browser, so the page can be static.
+  // (null while prerendering; nothing rendered depends on it directly.)
+  const [id] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : (new URLSearchParams(window.location.search).get("id") ?? "")
+  );
   const [book, setBook] = useState<Book | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -62,6 +65,7 @@ export default function BookNotesPage() {
   const sessionUploads = useRef<string[]>([]);
 
   useEffect(() => {
+    if (id === null) return;
     let cancelled = false;
     (async () => {
       try {
@@ -153,7 +157,7 @@ export default function BookNotesPage() {
         const blob = await compressForNotes(file);
         const fd = new FormData();
         fd.append("file", blob);
-        fd.append("bookId", id);
+        fd.append("bookId", id ?? "");
         try {
           const res = await apiFetch("/api/notes/images", { method: "POST", body: fd });
           if (!res.ok) {
@@ -173,7 +177,7 @@ export default function BookNotesPage() {
             editor.chain().focus().insertContent(content).run();
           }
         } catch {
-          setUploadError("The image could not be stored — is the server still running?");
+          setUploadError("The image could not be stored — is chandler reachable?");
         }
       }
     } finally {
@@ -216,7 +220,7 @@ export default function BookNotesPage() {
       setSaved(true);
       setEditing(false); // back to reading mode, box gone
     } catch {
-      setSaveError("Could not save — is the server still running?");
+      setSaveError("Could not save — is chandler reachable?");
     } finally {
       setSaving(false);
     }
@@ -254,7 +258,7 @@ export default function BookNotesPage() {
     return (
       <main className="page">
         <p className="empty-note">
-          {loadError ? "The library could not be opened — is the server still running?" : "This book is no longer on the shelf."}
+          {loadError ? "The library could not be opened — is chandler reachable?" : "This book is no longer on the shelf."}
         </p>
         <p className="ledger-copy">
           <Link className="notes-back" href="/">

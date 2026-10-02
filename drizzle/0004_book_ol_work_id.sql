@@ -1,1 +1,0 @@
-ALTER TABLE "book" ADD COLUMN "ol_work_id" text;

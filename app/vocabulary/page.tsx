@@ -138,7 +138,7 @@ export default function VocabularyPage() {
     resetLookup();
     setSearching(true);
     try {
-      const res = await fetch("/api/define?word=" + encodeURIComponent(word));
+      const res = await apiFetch("/api/define?word=" + encodeURIComponent(word));
       if (!res.ok) throw new Error();
       const data: { entry: DefineEntry | null } = await res.json();
       if (data.entry && data.entry.senses.length > 0) {
@@ -421,7 +421,7 @@ export default function VocabularyPage() {
                       {book ? (
                         <>
                           from{" "}
-                          <Link className="vocab-book-link" href={`/books/${book.id}`}>
+                          <Link className="vocab-book-link" href={`/books?id=${encodeURIComponent(book.id)}`}>
                             <i>{book.title}</i>
                           </Link>{" "}
                           ·{" "}

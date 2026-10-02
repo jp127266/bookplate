@@ -16,7 +16,8 @@ export interface Book {
   rating: number; // 0–5, 0 = unrated
   dateRead?: string; // ISO yyyy-mm-dd
   notes?: string;
-  coverImage?: string; // /api/covers/<id>.jpg?v=…; absent = generated cover
+  coverImage?: string; // <base>/data/covers/<id>.jpg?v=…; absent = generated cover
+  epub?: string; // folder name in the EPUB library; absent = not on chandler
   colorIndex: number; // index into PALETTE
   addedAt: string; // ISO timestamp
 }
