@@ -149,6 +149,24 @@ export default function ReaderPage() {
           startX = null;
         });
 
+        // Tap zones on touch screens: the outer quarters of the page turn it,
+        // as in Apple Books. Links (footnotes, contents) and text selection
+        // keep working; mouse clicks on desktops are left alone.
+        const touchScreen = window.matchMedia("(pointer: coarse)").matches;
+        rendition.on("click", (e: MouseEvent) => {
+          if (!touchScreen || !viewRef.current) return;
+          if ((e.target as Element | null)?.closest?.("a")) return;
+          if (!(e.view?.getSelection()?.isCollapsed ?? true)) return;
+          // The book's frame scrolls sideways under the view in paginated
+          // mode, so measure the tap against the visible area.
+          const frame = e.view?.frameElement as HTMLElement | null | undefined;
+          if (!frame) return;
+          const area = viewRef.current.getBoundingClientRect();
+          const x = frame.getBoundingClientRect().left + e.clientX - area.left;
+          if (x < area.width * 0.25) void rendition.prev();
+          else if (x > area.width * 0.75) void rendition.next();
+        });
+
         await rendition.display(saved?.cfi || undefined);
 
         // Percentages need a location index: built once, then cached.
@@ -254,10 +272,18 @@ export default function ReaderPage() {
       </div>
 
       <footer className="reader-foot">
+        {/* Phones: the page-turn arrows live here, at thumb height, instead
+            of taking width from the text. Hidden on wider screens. */}
+        <button type="button" className="reader-foot-turn" onClick={() => void renditionRef.current?.prev()} aria-label="Previous page">
+          ‹
+        </button>
         <div className="reader-progress" aria-hidden>
           <div className="reader-progress-fill" style={{ width: `${Math.round((percent ?? 0) * 100)}%` }} />
         </div>
         <span>{percent === null ? "Measuring the book…" : `${Math.round(percent * 100)}% read`}</span>
+        <button type="button" className="reader-foot-turn" onClick={() => void renditionRef.current?.next()} aria-label="Next page">
+          ›
+        </button>
       </footer>
     </main>
   );

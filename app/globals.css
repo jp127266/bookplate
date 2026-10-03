@@ -3473,11 +3473,54 @@ select,
   background: var(--accent);
 }
 
+/* Phones put the page-turn arrows in the footer instead (see below). */
+.reader-foot-turn {
+  display: none;
+  background: none;
+  border: 0;
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.reader-foot-turn:hover,
+.reader-foot-turn:active,
+.reader-turn:active {
+  color: var(--accent);
+}
+
 @media (max-width: 640px) {
+  /* The side arrows would take ~90px from a ~390px-wide page: on phones the
+     same arrows sit at both ends of the progress bar, at thumb height, and
+     the page edges are tap zones (see app/read/page.tsx). */
   .reader-turn {
-    display: none; /* swipe instead */
+    display: none;
+  }
+  .reader-foot {
+    gap: 4px;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+  }
+  .reader-foot-turn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex: none;
   }
   .reader-chapter {
     display: none;
+  }
+  /* Smaller tools leave the book's title some room. */
+  .reader-bar {
+    gap: 10px;
+    padding: 8px 12px;
+  }
+  .reader-tools {
+    gap: 6px;
+  }
+  .reader-tools .btn {
+    padding: 8px 10px;
   }
 }
