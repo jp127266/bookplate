@@ -15,6 +15,30 @@ interface Position {
 }
 
 const FONT_SIZES = [80, 90, 100, 110, 120, 135, 150];
+const DEFAULT_FONT_STEP = 2; // 100%
+
+// The text size is remembered per device (a phone and a laptop want
+// different sizes), for every book. Storage can be unavailable — private
+// windows, blocked site data — and then the reader just starts at 100%.
+const FONT_KEY = "bookplate.reader.fontStep";
+
+function loadFontStep(): number {
+  try {
+    const raw = window.localStorage.getItem(FONT_KEY);
+    const n = raw === null ? NaN : Number(raw);
+    return Number.isInteger(n) && n >= 0 && n < FONT_SIZES.length ? n : DEFAULT_FONT_STEP;
+  } catch {
+    return DEFAULT_FONT_STEP;
+  }
+}
+
+function saveFontStep(step: number): void {
+  try {
+    window.localStorage.setItem(FONT_KEY, String(step));
+  } catch {
+    // Not remembered this time; the change still applies to this book.
+  }
+}
 
 // /read?id=<bookId> — reads the book's unpacked EPUB straight from the
 // library folder. Where you left off is kept in data/reading/<id>.json, and
@@ -28,7 +52,7 @@ export default function ReaderPage() {
   const [tocOpen, setTocOpen] = useState(false);
   const [percent, setPercent] = useState<number | null>(null);
   const [chapter, setChapter] = useState("");
-  const [fontStep, setFontStep] = useState(2);
+  const [fontStep, setFontStep] = useState(DEFAULT_FONT_STEP);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("id") ?? "";
@@ -77,7 +101,9 @@ export default function ReaderPage() {
           body: { "font-family": "Georgia, 'Times New Roman', serif !important", "line-height": "1.55 !important" },
           img: { "max-width": "100% !important" },
         });
-        rendition.themes.fontSize(`${FONT_SIZES[fontStep]}%`);
+        const step = loadFontStep();
+        setFontStep(step);
+        rendition.themes.fontSize(`${FONT_SIZES[step]}%`);
 
         epub.loaded.navigation.then((nav) => !cancelled && setToc(nav.toc));
 
@@ -149,13 +175,14 @@ export default function ReaderPage() {
       epub?.destroy();
       renditionRef.current = null;
     };
-    // The font size is applied separately; reopening the book isn't needed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    renditionRef.current?.themes.fontSize(`${FONT_SIZES[fontStep]}%`);
-  }, [fontStep]);
+  const changeFont = (delta: number) => {
+    const step = Math.min(FONT_SIZES.length - 1, Math.max(0, fontStep + delta));
+    setFontStep(step);
+    saveFontStep(step);
+    renditionRef.current?.themes.fontSize(`${FONT_SIZES[step]}%`);
+  };
 
   const go = (href: string) => {
     setTocOpen(false);
@@ -189,7 +216,7 @@ export default function ReaderPage() {
           <button
             type="button"
             className="btn"
-            onClick={() => setFontStep((s) => Math.max(0, s - 1))}
+            onClick={() => changeFont(-1)}
             disabled={fontStep === 0}
             aria-label="Smaller text"
           >
@@ -198,7 +225,7 @@ export default function ReaderPage() {
           <button
             type="button"
             className="btn"
-            onClick={() => setFontStep((s) => Math.min(FONT_SIZES.length - 1, s + 1))}
+            onClick={() => changeFont(1)}
             disabled={fontStep === FONT_SIZES.length - 1}
             aria-label="Larger text"
           >
