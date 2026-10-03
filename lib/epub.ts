@@ -12,6 +12,7 @@ import { newId } from "./id";
 import { PALETTE } from "./palette";
 
 export const LIBRARY = `${BASE}/library`;
+const UNKNOWN_AUTHOR = "Unknown author";
 
 // A path inside the library, one URL-encoded segment at a time.
 export function libraryUrl(folder: string, path = ""): string {
@@ -95,7 +96,7 @@ export async function readEpubMeta(folder: string): Promise<EpubMeta> {
     if ((await fetch(art, { method: "HEAD" }).catch(() => null))?.ok) coverUrl = art;
   }
 
-  return { title, author: creators.join(" & ") || "Unknown author", genre, isbn, coverUrl };
+  return { title, author: creators.join(" & ") || UNKNOWN_AUTHOR, genre, isbn, coverUrl };
 }
 
 // "OEBPS/" + "../images/a.jpg" → "images/a.jpg"; hrefs arrive URL-encoded.
@@ -152,13 +153,17 @@ function colorFor(folder: string): number {
   return h % PALETTE.length;
 }
 
-async function bookFor(folder: string): Promise<Book> {
+// null when the folder can't be read yet — typically a book just copied in
+// whose files nginx can't read until chandler's nightly chmod (or one run by
+// hand). It's skipped and picked up by a later sync, rather than shelved
+// with a made-up title and no author.
+async function bookFor(folder: string): Promise<Book | null> {
   const id = newId();
   let meta: EpubMeta;
   try {
     meta = await readEpubMeta(folder);
   } catch {
-    meta = { title: folder.replace(/\.epub$/i, ""), author: "Unknown author" };
+    return null;
   }
   return {
     id,
@@ -175,27 +180,36 @@ async function bookFor(folder: string): Promise<Book> {
   };
 }
 
-// Looks again for covers of shelved EPUB books that have none (run by
-// Settings → Rescan). An EPUB book whose cover was removed by hand gets its
-// EPUB's cover back. Returns how many covers were found.
-export async function findMissingCovers(): Promise<number> {
+// Fills in what an EPUB book is missing (run by Settings → Rescan): a cover
+// when it has none, and title, author, genre and ISBN when it still carries
+// the placeholders of a book shelved before its files could be read. Fields
+// you've set yourself are left alone. Returns how many books changed.
+export async function repairBooks(): Promise<number> {
   const books = await loadBooks();
-  const found = new Map<string, string>();
-  for (const b of books.filter((b) => b.epub && !b.coverImage)) {
+  const patches = new Map<string, Partial<Book>>();
+  for (const b of books.filter((b) => b.epub && (!b.coverImage || b.author === UNKNOWN_AUTHOR))) {
     try {
       const meta = await readEpubMeta(b.epub!);
-      const cover = meta.coverUrl ? await storeCoverThumb(meta.coverUrl, b.id) : undefined;
-      if (cover) found.set(b.id, cover);
+      const patch: Partial<Book> = {};
+      if (b.author === UNKNOWN_AUTHOR && meta.author !== UNKNOWN_AUTHOR) {
+        patch.author = meta.author;
+        if (b.title === b.epub!.replace(/\.epub$/i, "")) patch.title = meta.title;
+        if (!b.genre && meta.genre) patch.genre = meta.genre;
+        if (!b.isbn && meta.isbn) patch.isbn = meta.isbn;
+      }
+      if (!b.coverImage && meta.coverUrl) {
+        const cover = await storeCoverThumb(meta.coverUrl, b.id);
+        if (cover) patch.coverImage = cover;
+      }
+      if (Object.keys(patch).length) patches.set(b.id, patch);
     } catch {
-      // The folder is missing or unreadable — leave the generated cover.
+      // The folder is missing or unreadable — try again on the next rescan.
     }
   }
-  if (found.size) {
-    await updateBooks((current) =>
-      current.map((b) => (found.has(b.id) && !b.coverImage ? { ...b, coverImage: found.get(b.id) } : b))
-    );
+  if (patches.size) {
+    await updateBooks((current) => current.map((b) => (patches.has(b.id) ? { ...b, ...patches.get(b.id) } : b)));
   }
-  return found.size;
+  return patches.size;
 }
 
 // Shelves every EPUB folder that isn't on the shelf yet, a few at a time,
@@ -208,14 +222,14 @@ export async function syncLibrary(
   const todo = folders.filter((f) => !shelved.has(f));
   let done = 0;
   for (let i = 0; i < todo.length; i += 8) {
-    const batch = await Promise.all(todo.slice(i, i + 8).map(bookFor));
+    const batch = (await Promise.all(todo.slice(i, i + 8).map(bookFor))).filter((b): b is Book => b !== null);
     let saved: Book[] = [];
     await updateBooks((current) => {
       const have = new Set(current.map((b) => b.epub).filter(Boolean));
       saved = batch.filter((b) => !have.has(b.epub));
       return [...current, ...saved];
     });
-    done += batch.length;
+    done += Math.min(8, todo.length - i);
     onBatch(saved, done, todo.length);
   }
   return todo.length;

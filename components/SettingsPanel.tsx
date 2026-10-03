@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { buildExport, importArchive, ImportError } from "@/lib/archive";
-import { findMissingCovers, syncLibrary } from "@/lib/epub";
+import { repairBooks, syncLibrary } from "@/lib/epub";
 
 type Note = { ok: boolean; text: string } | null;
 
@@ -72,13 +72,13 @@ export default function SettingsPanel() {
         shelved += added.length;
         setScanNote({ ok: true, text: `Shelving new books… ${done} / ${total}` });
       });
-      setScanNote({ ok: true, text: "Looking for missing covers…" });
-      const covers = await findMissingCovers();
+      setScanNote({ ok: true, text: "Filling in missing covers and details…" });
+      const repaired = await repairBooks();
       setScanNote({
         ok: true,
         text:
           (found === 0 ? "Every EPUB is already on the shelf." : `Added ${plural(shelved, "book")} to the shelf.`) +
-          (covers ? ` Found ${plural(covers, "missing cover")}.` : ""),
+          (repaired ? ` Filled in ${plural(repaired, "book")}.` : ""),
       });
     } catch {
       setScanNote({ ok: false, text: "The EPUB library could not be read — is chandler reachable?" });
