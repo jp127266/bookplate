@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { buildExport, importArchive, ImportError } from "@/lib/archive";
-import { repairBooks, syncLibrary } from "@/lib/epub";
+import { pruneMissing, repairBooks, syncLibrary } from "@/lib/epub";
 
 type Note = { ok: boolean; text: string } | null;
 
@@ -74,11 +74,20 @@ export default function SettingsPanel() {
       });
       setScanNote({ ok: true, text: "Filling in missing covers and details…" });
       const repaired = await repairBooks();
+      setScanNote({ ok: true, text: "Checking for deleted EPUBs…" });
+      const pruned = await pruneMissing();
+      const titles = (books: { title: string }[]) => books.map((b) => `“${b.title}”`).join(", ");
       setScanNote({
         ok: true,
         text:
           (found === 0 ? "Every EPUB is already on the shelf." : `Added ${plural(shelved, "book")} to the shelf.`) +
-          (repaired ? ` Filled in ${plural(repaired, "book")}.` : ""),
+          (repaired ? ` Filled in ${plural(repaired, "book")}.` : "") +
+          (pruned.removed.length
+            ? ` Removed ${plural(pruned.removed.length, "book")} whose EPUB was deleted: ${titles(pruned.removed)}.`
+            : "") +
+          (pruned.kept.length
+            ? ` Kept ${titles(pruned.kept)}: the EPUB is gone, but the book has your ratings, notes or progress — delete it from its dialog if you no longer want it.`
+            : ""),
       });
     } catch {
       setScanNote({ ok: false, text: "The EPUB library could not be read — is chandler reachable?" });
@@ -93,7 +102,8 @@ export default function SettingsPanel() {
         <h2 className="form-heading">EPUB library</h2>
         <p className="settings-lede">
           Every book in the <code>Books</code> folder on chandler is put on the shelf the first time the library opens.
-          After copying new books there, rescan to add them now (nightly, chandler also makes new files readable — if a
+          Rescanning also takes books off the shelf whose EPUB you deleted, unless you&rsquo;ve rated, noted or
+          started them. After copying new books there, rescan to add them now (nightly, chandler also makes new files readable — if a
           new book won&rsquo;t open, it may need that first).
         </p>
         <button type="button" className="btn btn--primary" disabled={busy !== null} onClick={runScan}>

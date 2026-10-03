@@ -6,8 +6,8 @@
 // it's already shelved. Removing a folder leaves its book (ratings, notes)
 // in place; only the Read button stops working.
 
-import { Book } from "./types";
-import { BASE, DATA, loadBooks, updateBooks, writeFile } from "./api";
+import { Book, ProgressEntry, VocabEntry } from "./types";
+import { apiFetch, BASE, DATA, listDir, loadBooks, readJson, updateBooks, writeFile } from "./api";
 import { newId } from "./id";
 import { PALETTE } from "./palette";
 
@@ -243,6 +243,42 @@ export async function repairBooks(): Promise<number> {
     await updateBooks((current) => current.map((b) => (patches.has(b.id) ? { ...b, ...patches.get(b.id) } : b)));
   }
   return patches.size;
+}
+
+export interface PruneResult {
+  removed: Book[];
+  kept: Book[]; // EPUB gone, but the book holds your own data
+}
+
+// Takes books off the shelf whose EPUB folder is gone (run by Settings →
+// Rescan, never on simply opening the library). A book is kept if it holds
+// anything you added: a rating, notes, a reading or finished status,
+// progress, or vocabulary — delete those from their dialog if you mean to.
+// An empty library listing (drive not mounted?) removes nothing.
+export async function pruneMissing(): Promise<PruneResult> {
+  const folders = new Set(await listEpubFolders());
+  if (folders.size === 0) return { removed: [], kept: [] };
+  const [books, noted, progress, vocab] = await Promise.all([
+    loadBooks(),
+    listDir("notes").then((files) => new Set(files.map((f) => f.name.replace(/\.md$/, "")))),
+    readJson<{ progress: ProgressEntry[] }>("progress.json", { progress: [] }),
+    readJson<{ words: VocabEntry[] }>("vocabulary.json", { words: [] }),
+  ]);
+  const tracked = new Set([...progress.progress.map((e) => e.bookId), ...vocab.words.map((w) => w.bookId)]);
+  const yours = (b: Book) =>
+    b.rating > 0 || b.status !== "to-read" || !!b.dateRead || !!b.notes?.trim() || noted.has(b.id) || tracked.has(b.id);
+
+  const result: PruneResult = { removed: [], kept: [] };
+  for (const b of books.filter((b) => b.epub && !folders.has(b.epub))) {
+    if (yours(b)) {
+      result.kept.push(b);
+    } else {
+      // The same path as Delete: cover, progress, notes and position go too.
+      const res = await apiFetch(`/api/books/${b.id}`, { method: "DELETE" });
+      if (res.ok) result.removed.push(b);
+    }
+  }
+  return result;
 }
 
 // Shelves every EPUB folder that isn't on the shelf yet, a few at a time,
