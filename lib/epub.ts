@@ -54,7 +54,8 @@ export interface EpubMeta {
   author: string;
   genre?: string;
   isbn?: string;
-  coverUrl?: string;
+  coverUrls: string[]; // candidates, best first; the first that decodes wins
+  drm: boolean; // content encrypted (Apple FairPlay, Adobe): not readable here
 }
 
 export async function readEpubMeta(folder: string): Promise<EpubMeta> {
@@ -78,25 +79,41 @@ export async function readEpubMeta(folder: string): Promise<EpubMeta> {
     items.find((i) => coverId && i.getAttribute("id") === coverId) ??
     items.find((i) => /cover/i.test(i.getAttribute("id") ?? "") && (i.getAttribute("media-type") ?? "").startsWith("image/"));
   const href = cover?.getAttribute("href");
-  let coverUrl = href ? libraryUrl(folder, resolvePath(dir, href)) : undefined;
+  const coverUrls: string[] = [];
+  if (href) coverUrls.push(libraryUrl(folder, resolvePath(dir, href)));
 
   // No cover image declared: follow a cover *page* (the guide's cover
-  // reference, or an XHTML item named like one) to its first image, then try
-  // the artwork Apple Books leaves in the folder.
-  if (!coverUrl) {
+  // reference, or an XHTML item named like one) to its first image.
+  if (!href) {
     const pageHref =
       byLocalName(doc, "reference").find((r) => r.getAttribute("type") === "cover")?.getAttribute("href") ??
       items
         .find((i) => /cover/i.test(i.getAttribute("id") ?? "") && /html/.test(i.getAttribute("media-type") ?? ""))
         ?.getAttribute("href");
-    if (pageHref) coverUrl = await imageInPage(folder, resolvePath(dir, pageHref.split("#")[0]));
+    const pageImage = pageHref ? await imageInPage(folder, resolvePath(dir, pageHref.split("#")[0])) : undefined;
+    if (pageImage) coverUrls.push(pageImage);
   }
-  if (!coverUrl) {
-    const art = libraryUrl(folder, "iTunesArtwork");
-    if ((await fetch(art, { method: "HEAD" }).catch(() => null))?.ok) coverUrl = art;
-  }
+  // Last resort: the artwork Apple Books leaves in the folder. It's the only
+  // usable cover of a FairPlay-protected book, whose own images are encrypted.
+  coverUrls.push(libraryUrl(folder, "iTunesArtwork"));
 
-  return { title, author: creators.join(" & ") || UNKNOWN_AUTHOR, genre, isbn, coverUrl };
+  const drm = await isDrmProtected(folder);
+
+  return { title, author: creators.join(" & ") || UNKNOWN_AUTHOR, genre, isbn, coverUrls, drm };
+}
+
+// Font obfuscation also lists files in encryption.xml, but doesn't stop
+// anyone reading the book.
+const FONT_OBFUSCATION = new Set(["http://www.idpf.org/2008/embedding", "http://ns.adobe.com/pdf/enc#RC"]);
+
+// DRM-protected: encryption.xml names any other algorithm — Apple FairPlay
+// (http://itunes.apple.com/dataenc) or Adobe's. A sinf.xml alone isn't
+// enough: free Apple Books titles carry one with nothing encrypted.
+async function isDrmProtected(folder: string): Promise<boolean> {
+  const res = await fetch(libraryUrl(folder, "META-INF/encryption.xml")).catch(() => null);
+  if (!res?.ok) return false;
+  const doc = new DOMParser().parseFromString(await res.text(), "application/xml");
+  return byLocalName(doc, "EncryptionMethod").some((m) => !FONT_OBFUSCATION.has(m.getAttribute("Algorithm") ?? ""));
 }
 
 // "OEBPS/" + "../images/a.jpg" → "images/a.jpg"; hrefs arrive URL-encoded.
@@ -124,8 +141,18 @@ async function imageInPage(folder: string, pagePath: string): Promise<string | u
   }
 }
 
+// The first candidate that decodes as an image, stored as the book's cover.
+async function storeCover(urls: string[], id: string): Promise<string | undefined> {
+  for (const url of urls) {
+    const stored = await storeCoverThumb(url, id);
+    if (stored) return stored;
+  }
+  return undefined;
+}
+
 // The cover scaled to fit 600 × 900 and saved as a JPEG, like the covers
-// Bookplate stores for books added by hand.
+// Bookplate stores for books added by hand. undefined when the file is
+// missing or isn't a decodable image (e.g. encrypted).
 async function storeCoverThumb(url: string, id: string): Promise<string | undefined> {
   try {
     const res = await fetch(url);
@@ -176,18 +203,23 @@ async function bookFor(folder: string): Promise<Book | null> {
     colorIndex: colorFor(folder),
     addedAt: new Date().toISOString(),
     epub: folder,
-    coverImage: meta.coverUrl ? await storeCoverThumb(meta.coverUrl, id) : undefined,
+    coverImage: await storeCover(meta.coverUrls, id),
+    drm: meta.drm,
   };
 }
 
 // Fills in what an EPUB book is missing (run by Settings → Rescan): a cover
-// when it has none, and title, author, genre and ISBN when it still carries
-// the placeholders of a book shelved before its files could be read. Fields
-// you've set yourself are left alone. Returns how many books changed.
+// when it has none; title, author, genre and ISBN when it still carries the
+// placeholders of a book shelved before its files could be read; and the DRM
+// flag for books shelved before it existed. Fields you've set yourself are
+// left alone. Returns how many books changed.
 export async function repairBooks(): Promise<number> {
   const books = await loadBooks();
   const patches = new Map<string, Partial<Book>>();
-  for (const b of books.filter((b) => b.epub && (!b.coverImage || b.author === UNKNOWN_AUTHOR))) {
+  // DRM books are re-checked each time (there are few), so a book that
+  // turns out to be readable gets its Read button back.
+  const needsWork = (b: Book) => !b.coverImage || b.author === UNKNOWN_AUTHOR || b.drm !== false;
+  for (const b of books.filter((b) => b.epub && needsWork(b))) {
     try {
       const meta = await readEpubMeta(b.epub!);
       const patch: Partial<Book> = {};
@@ -197,10 +229,11 @@ export async function repairBooks(): Promise<number> {
         if (!b.genre && meta.genre) patch.genre = meta.genre;
         if (!b.isbn && meta.isbn) patch.isbn = meta.isbn;
       }
-      if (!b.coverImage && meta.coverUrl) {
-        const cover = await storeCoverThumb(meta.coverUrl, b.id);
+      if (!b.coverImage) {
+        const cover = await storeCover(meta.coverUrls, b.id);
         if (cover) patch.coverImage = cover;
       }
+      if (b.drm !== meta.drm) patch.drm = meta.drm;
       if (Object.keys(patch).length) patches.set(b.id, patch);
     } catch {
       // The folder is missing or unreadable — try again on the next rescan.

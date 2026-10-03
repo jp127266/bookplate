@@ -18,6 +18,7 @@ export interface Book {
   notes?: string;
   coverImage?: string; // <base>/data/covers/<id>.jpg?v=…; absent = generated cover
   epub?: string; // folder name in the EPUB library; absent = not on chandler
+  drm?: boolean; // the EPUB is an Apple FairPlay purchase: readable only in Apple Books
   colorIndex: number; // index into PALETTE
   addedAt: string; // ISO timestamp
 }

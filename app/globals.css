@@ -3524,3 +3524,9 @@ select,
     padding: 8px 10px;
   }
 }
+
+/* Apple Books (FairPlay) purchases: shown instead of the Read button. */
+.detail-drm {
+  margin: 14px 0 0;
+  font-size: 0.9rem;
+}

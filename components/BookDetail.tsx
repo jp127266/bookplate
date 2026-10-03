@@ -145,8 +145,13 @@ export default function BookDetail({
                 onFinish={onFinish}
               />
             )}
+            {book.epub && book.drm && (
+              <p className="muted detail-drm">
+                This EPUB is an Apple Books purchase protected by DRM — it can only be read in the Books app.
+              </p>
+            )}
             <div className="dialog-actions">
-              {book.epub && (
+              {book.epub && !book.drm && (
                 <Link className="btn btn--primary" href={`/read?id=${encodeURIComponent(book.id)}`}>
                   Read
                 </Link>

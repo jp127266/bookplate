@@ -69,6 +69,9 @@ export default function ReaderPage() {
         const found = books.find((b) => b.id === id);
         if (!found) throw new Error("This book is no longer on the shelf.");
         if (!found.epub) throw new Error("This book has no EPUB in the library.");
+        if (found.drm) {
+          throw new Error("This EPUB is an Apple Books purchase protected by DRM — it can only be read in the Books app.");
+        }
         if (cancelled) return;
         setBook(found);
 
