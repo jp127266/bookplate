@@ -18,7 +18,8 @@
 >
 > Build and publish with `npm run deploy` (`deploy/deploy.sh`). The router
 > side — nginx config, folders, permissions — is documented in
-> `docs/chandler-bookplate-plan.md` in the qt-audio repo. Everything below
+> `docs/chandler-bookplate-plan.md` in the chandler repo
+> (`jp127266/chandler`, formerly `qt-audio`). Everything below
 > describes the Docker edition on `main`.
 
 A personal reading tracker with a bold editorial look. Books carry ratings,
